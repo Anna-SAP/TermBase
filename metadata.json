@@ -1,0 +1,5 @@
+{
+  "name": "Terminology Manager",
+  "description": "A web application to manage and sync terminology from a Google Spreadsheet.",
+  "requestFramePermissions": []
+}

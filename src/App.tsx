@@ -29,10 +29,11 @@ export default function App() {
     const storedTerms = localStorage.getItem('terminology_terms');
     const storedDate = localStorage.getItem('terminology_last_sync');
     let hasLocalData = false;
+    let parsedTerms: Term[] = [];
     
     if (storedTerms) {
       try {
-        const parsedTerms = JSON.parse(storedTerms);
+        parsedTerms = JSON.parse(storedTerms);
         if (parsedTerms && parsedTerms.length > 0) {
           setTerms(parsedTerms);
           hasLocalData = true;
@@ -50,6 +51,8 @@ export default function App() {
       performInitialSync();
     } else {
       setIsInitialSyncing(false);
+      // Automatically check for updates in the background if we loaded from cache
+      performBackgroundCheck(parsedTerms);
     }
   }, []);
 
@@ -70,6 +73,24 @@ export default function App() {
       setError('Failed to load initial data automatically. Please try fetching manually.');
     } finally {
       setIsInitialSyncing(false);
+    }
+  };
+
+  const performBackgroundCheck = async (currentTerms: Term[]) => {
+    setIsFetching(true);
+    try {
+      const fetchedTerms = await fetchTermsFromSheet();
+      const diff = computeDiff(currentTerms, fetchedTerms);
+      
+      // If there are updates, automatically show the banner
+      if (diff.isDifferent) {
+        setDiffSummary(diff);
+      }
+    } catch (err) {
+      console.error('Background sync failed:', err);
+      // Fail silently for background checks to avoid disrupting the user
+    } finally {
+      setIsFetching(false);
     }
   };
 

@@ -8,6 +8,9 @@ interface TermTableProps {
 
 export const TermTable: React.FC<TermTableProps> = ({ terms }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [matchWholeWord, setMatchWholeWord] = useState(false);
+  const [matchCase, setMatchCase] = useState(false);
+  
   const deferredSearchTerm = useDeferredValue(searchTerm);
   const isSearching = searchTerm !== deferredSearchTerm;
   
@@ -16,7 +19,7 @@ export const TermTable: React.FC<TermTableProps> = ({ terms }) => {
   // Reset display count when search changes
   useEffect(() => {
     setDisplayCount(20);
-  }, [deferredSearchTerm]);
+  }, [deferredSearchTerm, matchWholeWord, matchCase]);
 
   // Dynamically extract language columns (e.g., zh_CN, fr_FR, es_419)
   const languages = useMemo(() => {
@@ -28,21 +31,42 @@ export const TermTable: React.FC<TermTableProps> = ({ terms }) => {
 
   const filteredTerms = useMemo(() => {
     return terms.filter(term => {
-      const searchLower = deferredSearchTerm.toLowerCase();
-      if (!searchLower) return true; // Optimization: return all if search is empty
+      if (!deferredSearchTerm) return true; // Optimization: return all if search is empty
       
-      if (term.en_US && term.en_US.toLowerCase().includes(searchLower)) return true;
-      if (term.definition && term.definition.toLowerCase().includes(searchLower)) return true;
+      const searchStr = matchCase ? deferredSearchTerm : deferredSearchTerm.toLowerCase();
+      
+      const checkMatch = (text: string | undefined) => {
+        if (!text) return false;
+        const targetText = matchCase ? text : text.toLowerCase();
+        
+        if (matchWholeWord) {
+          // Escape special characters for regex
+          const escapedSearchStr = searchStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          try {
+            // \b matches word boundaries. We use it to ensure the search term is a whole word.
+            const regex = new RegExp(`\\b${escapedSearchStr}\\b`, matchCase ? '' : 'i');
+            return regex.test(text);
+          } catch (e) {
+            // Fallback if regex fails
+            return targetText === searchStr;
+          }
+        } else {
+          return targetText.includes(searchStr);
+        }
+      };
+      
+      if (checkMatch(term.en_US)) return true;
+      if (checkMatch(term.definition)) return true;
       
       // Search across all available languages
       for (const lang of languages) {
-        if (term[lang] && term[lang].toLowerCase().includes(searchLower)) {
+        if (checkMatch(term[lang])) {
           return true;
         }
       }
       return false;
     });
-  }, [terms, deferredSearchTerm, languages]);
+  }, [terms, deferredSearchTerm, languages, matchWholeWord, matchCase]);
 
   const displayedTerms = useMemo(() => {
     return filteredTerms.slice(0, displayCount);
@@ -72,12 +96,36 @@ export const TermTable: React.FC<TermTableProps> = ({ terms }) => {
             </div>
           )}
         </div>
-        <div className="mt-3 text-sm text-slate-500 flex items-center gap-2">
-          {isSearching ? (
-            <span>Searching...</span>
-          ) : (
-            <span>Showing {displayedTerms.length} of {filteredTerms.length} terms</span>
-          )}
+        
+        <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-slate-600">
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-1.5 cursor-pointer hover:text-indigo-600 transition-colors">
+              <input 
+                type="checkbox" 
+                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+                checked={matchWholeWord}
+                onChange={(e) => setMatchWholeWord(e.target.checked)}
+              />
+              Match whole word
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer hover:text-indigo-600 transition-colors">
+              <input 
+                type="checkbox" 
+                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+                checked={matchCase}
+                onChange={(e) => setMatchCase(e.target.checked)}
+              />
+              Match case
+            </label>
+          </div>
+          
+          <div className="text-slate-500 flex items-center gap-2 ml-auto sm:ml-0">
+            {isSearching ? (
+              <span>Searching...</span>
+            ) : (
+              <span>Showing {displayedTerms.length} of {filteredTerms.length} terms</span>
+            )}
+          </div>
         </div>
       </div>
 

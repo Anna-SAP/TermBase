@@ -31,26 +31,21 @@ export const TermTable: React.FC<TermTableProps> = ({ terms }) => {
 
   const filteredTerms = useMemo(() => {
     return terms.filter(term => {
-      if (!deferredSearchTerm) return true; // Optimization: return all if search is empty
+      const query = deferredSearchTerm.trim();
+      if (!query) return true; // Optimization: return all if search is empty
       
-      const searchStr = matchCase ? deferredSearchTerm : deferredSearchTerm.toLowerCase();
+      const searchStr = matchCase ? query : query.toLowerCase();
       
       const checkMatch = (text: string | undefined) => {
         if (!text) return false;
-        const targetText = matchCase ? text : text.toLowerCase();
+        const targetText = matchCase ? text.trim() : text.trim().toLowerCase();
         
         if (matchWholeWord) {
-          // Escape special characters for regex
-          const escapedSearchStr = searchStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          try {
-            // \b matches word boundaries. We use it to ensure the search term is a whole word.
-            const regex = new RegExp(`\\b${escapedSearchStr}\\b`, matchCase ? '' : 'i');
-            return regex.test(text);
-          } catch (e) {
-            // Fallback if regex fails
-            return targetText === searchStr;
-          }
+          // Exact match: the entire field must match the search string exactly.
+          // This prevents returning phrases that merely contain the word.
+          return targetText === searchStr;
         } else {
+          // Substring match
           return targetText.includes(searchStr);
         }
       };

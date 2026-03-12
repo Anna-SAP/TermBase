@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useDeferredValue, useEffect } from 'react';
 import { Term } from '../services/googleSheetsService';
-import { Search, Globe2, Loader2 } from 'lucide-react';
+import { Search, Globe2, Loader2, CheckSquare, Square } from 'lucide-react';
 
 interface TermTableProps {
   terms: Term[];
@@ -10,6 +10,7 @@ export const TermTable: React.FC<TermTableProps> = ({ terms }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [matchWholeWord, setMatchWholeWord] = useState(false);
   const [matchCase, setMatchCase] = useState(false);
+  const [selectedLanguages, setSelectedLanguages] = useState<Set<string>>(new Set());
   
   const deferredSearchTerm = useDeferredValue(searchTerm);
   const isSearching = searchTerm !== deferredSearchTerm;
@@ -19,15 +20,40 @@ export const TermTable: React.FC<TermTableProps> = ({ terms }) => {
   // Reset display count when search changes
   useEffect(() => {
     setDisplayCount(20);
-  }, [deferredSearchTerm, matchWholeWord, matchCase]);
+  }, [deferredSearchTerm, matchWholeWord, matchCase, selectedLanguages]);
 
   // Dynamically extract language columns (e.g., zh_CN, fr_FR, es_419)
   const languages = useMemo(() => {
     if (terms.length === 0) return [];
     const firstTerm = terms[0];
     const langRegex = /^[a-z]{2}_[A-Z0-9]{2,3}$/;
-    return Object.keys(firstTerm).filter(key => langRegex.test(key) && key !== 'en_US');
+    return Object.keys(firstTerm).filter(key => langRegex.test(key) && key !== 'en_US').sort();
   }, [terms]);
+
+  // Initialize selected languages when languages are loaded
+  useEffect(() => {
+    if (languages.length > 0 && selectedLanguages.size === 0) {
+      setSelectedLanguages(new Set(languages));
+    }
+  }, [languages]);
+
+  const toggleLanguage = (lang: string) => {
+    const newSelected = new Set(selectedLanguages);
+    if (newSelected.has(lang)) {
+      newSelected.delete(lang);
+    } else {
+      newSelected.add(lang);
+    }
+    setSelectedLanguages(newSelected);
+  };
+
+  const toggleAllLanguages = () => {
+    if (selectedLanguages.size === languages.length) {
+      setSelectedLanguages(new Set());
+    } else {
+      setSelectedLanguages(new Set(languages));
+    }
+  };
 
   const filteredTerms = useMemo(() => {
     return terms.filter(term => {
@@ -122,6 +148,40 @@ export const TermTable: React.FC<TermTableProps> = ({ terms }) => {
             )}
           </div>
         </div>
+
+        {/* Language Filter Section */}
+        {languages.length > 0 && (
+          <div className="mt-6 p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-slate-700">Translation Languages:</h3>
+              <button 
+                onClick={toggleAllLanguages}
+                className="text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-1"
+              >
+                {selectedLanguages.size === languages.length ? (
+                  <><Square className="w-3.5 h-3.5" /> Deselect All</>
+                ) : (
+                  <><CheckSquare className="w-3.5 h-3.5" /> Select All</>
+                )}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-x-6 gap-y-3">
+              {languages.map(lang => (
+                <label key={lang} className="flex items-center gap-2 cursor-pointer group">
+                  <input 
+                    type="checkbox" 
+                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+                    checked={selectedLanguages.has(lang)}
+                    onChange={() => toggleLanguage(lang)}
+                  />
+                  <span className="text-sm text-slate-600 group-hover:text-indigo-600 transition-colors uppercase font-medium tracking-wide">
+                    {lang.replace('_', '-')}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-auto pb-8 pr-2 custom-scrollbar">
@@ -150,24 +210,26 @@ export const TermTable: React.FC<TermTableProps> = ({ terms }) => {
                 </div>
 
                 {/* Card Body: Translations Grid */}
-                <div className="p-6">
-                  <div className="flex items-center gap-2 mb-4 text-sm font-medium text-slate-500 uppercase tracking-wider">
-                    <Globe2 className="w-4 h-4" />
-                    Translations
+                {selectedLanguages.size > 0 && (
+                  <div className="p-6">
+                    <div className="flex items-center gap-2 mb-4 text-sm font-medium text-slate-500 uppercase tracking-wider">
+                      <Globe2 className="w-4 h-4" />
+                      Translations
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-6 gap-y-5">
+                      {languages.filter(lang => selectedLanguages.has(lang)).map(lang => (
+                        <div key={lang} className="flex flex-col gap-1">
+                          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                            {lang}
+                          </span>
+                          <span className="text-sm text-slate-800 font-medium break-words">
+                            {term[lang] || <span className="text-slate-300 italic font-normal">-</span>}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-6 gap-y-5">
-                    {languages.map(lang => (
-                      <div key={lang} className="flex flex-col gap-1">
-                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                          {lang}
-                        </span>
-                        <span className="text-sm text-slate-800 font-medium break-words">
-                          {term[lang] || <span className="text-slate-300 italic font-normal">-</span>}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                )}
               </div>
             ))}
             
